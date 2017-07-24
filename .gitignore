@@ -1,4 +1,6 @@
 *.swp
+
 *.sqlite
 config.json
-telegram-bot-reminder
+
+telegram-bot-reminder-api.ai

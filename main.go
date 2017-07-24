@@ -165,7 +165,7 @@ func processQueue(client *bot.Bot) {
 			// send message
 			message := fmt.Sprintf("%s", q.Message)
 			options := map[string]interface{}{}
-			if sent := client.SendMessage(q.ChatId, &message, options); !sent.Ok {
+			if sent := client.SendMessage(q.ChatId, message, options); !sent.Ok {
 				log.Printf("*** failed to send reminder: %s", *sent.Description)
 			} else {
 				// mark as delivered
@@ -239,25 +239,27 @@ func processUpdate(b *bot.Bot, update bot.Update, err error) {
 				} else if strings.HasPrefix(txt, CommandCancel) {
 					reminders := db.UndeliveredQueueItems(chatId)
 					if len(reminders) > 0 {
-						// inline keyboards for canceling reminder
-						buttons := [][]bot.InlineKeyboardButton{}
+						// inline keyboards
+						keys := make(map[string]string)
 						for _, r := range reminders {
-							buttons = append(buttons, []bot.InlineKeyboardButton{
-								bot.InlineKeyboardButton{
-									Text:         fmt.Sprintf("➤ %s (%s)", r.Message, r.FireOn.Format("2006.1.2 15:04")),
-									CallbackData: fmt.Sprintf("%s %d", CommandCancel, r.Id),
-								},
-							})
+							keys[fmt.Sprintf("➤ %s (%s)", r.Message, r.FireOn.Format("2006.1.2 15:04"))] = fmt.Sprintf("%s %d", CommandCancel, r.Id)
 						}
+						buttons := bot.NewInlineKeyboardButtonsAsRowsWithCallbackData(keys)
+
+						// add a button for canceling command
+						cancel := CommandCancel
 						buttons = append(buttons, []bot.InlineKeyboardButton{
 							bot.InlineKeyboardButton{
 								Text:         MessageCancel,
-								CallbackData: CommandCancel,
+								CallbackData: &cancel,
 							},
 						})
+
+						// options
 						options["reply_markup"] = bot.InlineKeyboardMarkup{
 							InlineKeyboard: buttons,
 						}
+
 						message = MessageCancelWhat
 					} else {
 						message = MessageNoReminders
@@ -292,7 +294,7 @@ func processUpdate(b *bot.Bot, update bot.Update, err error) {
 			if len(message) <= 0 {
 				message = MessageError
 			}
-			if sent := b.SendMessage(chatId, &message, options); !sent.Ok {
+			if sent := b.SendMessage(chatId, message, options); !sent.Ok {
 				log.Printf("*** failed to send message: %s", *sent.Description)
 			}
 		} else if update.HasCallbackQuery() {
@@ -338,7 +340,7 @@ func processCallbackQuery(b *bot.Bot, update bot.Update) bool {
 			"chat_id":    query.Message.Chat.Id,
 			"message_id": query.Message.MessageId,
 		}
-		if apiResult := b.EditMessageText(&message, options); apiResult.Ok {
+		if apiResult := b.EditMessageText(message, options); apiResult.Ok {
 			result = true
 		} else {
 			log.Printf("*** Failed to edit message text: %s", *apiResult.Description)
@@ -411,7 +413,7 @@ func main() {
 			aihelper.SetupAgent(ai, db)
 
 			// wait for new updates
-			log.Printf("> Starting bot: @%s (%s)", *me.Result.Username, *me.Result.FirstName)
+			log.Printf("> Starting bot: @%s (%s)", *me.Result.Username, me.Result.FirstName)
 			telegram.StartMonitoringUpdates(0, _telegramIntervalSeconds, processUpdate)
 		} else {
 			panic("failed to delete webhook")
